@@ -11,6 +11,7 @@
 | `2026-09-21_고도화_백로그.md` | 화면별 조사 질의 · 뽑아 올 것 · 손대면 안 되는 것 · 검증 기준 |
 | `무료_확장.md` | **무료로 할 수 있는 것** 전수 조사(2026-09-21): DESIGN.md 컬렉션 · 공식 스킬 · 자기 사이트 검증 MCP · Stitch |
 | `reference/awesome-design-md/` | 오랑 대조용으로 고른 실제 사이트 DESIGN.md 8개 (MIT, VoltAgent) |
+| `reference/oh-my-design/` | oh-my-design 카탈로그 **440개 DESIGN.md(한국 203개: toss·kakaopay·karrot·naverwebtoon…)**. 데이터만, 스킬·훅 제외 |
 | `../.claude/skills/frontend-design/` | Anthropic 공식 frontend-design 스킬 (Apache 2.0). 이 저장소를 열면 자동 로드 |
 | `../.mcp.json` | 이 저장소를 cwd로 열면 레퍼런스 6개 + 검증 2개(chrome-devtools·playwright) 서버가 자동 등록된다 |
 
