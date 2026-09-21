@@ -1,5 +1,5 @@
 {
-  "_comment": "OrangPro 웹디자인 고도화용 디자인 레퍼런스 MCP 5+1종. 설치·인증·요금·검증 상태는 design/README.md 참조. ${VAR} 는 로컬 환경변수에서 치환된다. 이 저장소를 cwd로 열었을 때만 적용되므로, 전역으로 쓰려면 README의 `claude mcp add --scope user` 명령을 쓴다.",
+  "_comment": "OrangPro 웹디자인 고도화용 MCP. 레퍼런스 6종(mobbin·nicelydone·refero·lazyweb·inspoai·inspo) + 자기 사이트 검증 2종(chrome-devtools·playwright, 무료·공식). 설치·인증·요금·검증 상태는 design/README.md, 무료 대안은 design/무료_확장.md 참조. ${VAR}는 로컬 환경변수에서 치환된다. 이 저장소를 cwd로 열었을 때만 적용되므로 전역으로 쓰려면 README의 `claude mcp add --scope user` 명령을 쓴다.",
   "mcpServers": {
     "mobbin": {
       "type": "http",
@@ -11,10 +11,10 @@
     },
     "refero": {
       "command": "npx",
-      "args": ["-y", "fidgetcoding-refero-mcp"],
-      "env": {
-        "REFERO_MCP_VAULT_DIR": "${REFERO_MCP_VAULT_DIR}"
-      }
+      "args": [
+        "-y",
+        "fidgetcoding-refero-mcp"
+      ]
     },
     "lazyweb": {
       "type": "http",
@@ -25,7 +25,10 @@
     },
     "inspoai": {
       "command": "npx",
-      "args": ["-y", "@inspoai/mcp"],
+      "args": [
+        "-y",
+        "@inspoai/mcp"
+      ],
       "env": {
         "INSPOAI_API_KEY": "${INSPOAI_API_KEY}"
       }
@@ -33,6 +36,20 @@
     "inspo": {
       "type": "http",
       "url": "https://inspomcp.dev/api/mcp"
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
     }
   }
 }

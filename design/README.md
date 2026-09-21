@@ -9,7 +9,10 @@
 | `README.md` (이 문서) | MCP 설치·인증·요금 · 제1법 아래에서 레퍼런스를 쓰는 규율 · 작업 루프 |
 | `DESIGN.md` | **오랑프로 현행 디자인 시스템 기준선**. MCP가 뽑아 주는 레퍼런스 DESIGN.md와 **이것을 대조**한다 |
 | `2026-09-21_고도화_백로그.md` | 화면별 조사 질의 · 뽑아 올 것 · 손대면 안 되는 것 · 검증 기준 |
-| `../.mcp.json` | 이 저장소를 cwd로 열면 6개 서버가 자동 등록된다 |
+| `무료_확장.md` | **무료로 할 수 있는 것** 전수 조사(2026-09-21): DESIGN.md 컬렉션 · 공식 스킬 · 자기 사이트 검증 MCP · Stitch |
+| `reference/awesome-design-md/` | 오랑 대조용으로 고른 실제 사이트 DESIGN.md 8개 (MIT, VoltAgent) |
+| `../.claude/skills/frontend-design/` | Anthropic 공식 frontend-design 스킬 (Apache 2.0). 이 저장소를 열면 자동 로드 |
+| `../.mcp.json` | 이 저장소를 cwd로 열면 레퍼런스 6개 + 검증 2개(chrome-devtools·playwright) 서버가 자동 등록된다 |
 
 제1법 로드됨(**v2.2 통합정본 + v2.4 개정부록, v2.5 제21조 포함**). 정본 시트(`OrangPro_원전_정본`) 165행 로드됨.
 ⚠️ 스킬 `orangpro` §0-A는 아직 "최신 = v1.5"로 적혀 있다. 드라이브 실측은 v2.2 통합정본(ID `1WGKc9XL0YpdOFR0SCU9UjLoYD-sW3VLm`) + v2.4 부록(ID `1pFg5WQoLDida8acctPhzmM7mjBc8p487`)이 최신이다. 스킬 갱신은 대표님 판단.
@@ -33,9 +36,9 @@
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | **Mobbin** | 실제 출시 앱 60만+ 화면·플로우. 모바일 강함 | `claude mcp add mobbin --scope user --transport http https://api.mobbin.com/mcp` → 새 세션에서 `/mcp` → mobbin → Authenticate(브라우저 OAuth) | Mobbin 계정 OAuth | **유료 플랜 필수** (Pro 월 $10 안내) | 엔드포인트·명령은 2차 출처 3곳 일치. claude.ai 커넥터 디렉터리에도 `Mobbin`(tools: search_flows · search_screens · search_sections) 등재 확인 |
 | **Nicelydone** | SaaS 웹앱 14만+ 화면·플로우·컴포넌트. **웹 대시보드형에 가장 가깝다** | `claude mcp add --transport http nicelydone https://nicelydone.club/mcp` | 계정 로그인(별도 키 없음) | **Pro 구독 필수** | ⚠️ **미검증**. URL은 검색 요약이 추정한 값. nicelydone.club/mcp 의 "Install" 스니펫을 복사해 `.mcp.json`의 `nicelydone.url`을 덮어쓸 것 |
-| **Refero** (커뮤니티 래퍼) | styles.refero.design 큐레이션 약 200사이트의 **DESIGN.md**(색·타이포·간격·do/don't) | `claude mcp add refero -- npx -y fidgetcoding-refero-mcp` | 없음. `OPENAI_API_KEY`(선택, 시맨틱 검색) · `REFERO_MCP_VAULT_DIR`(선택, DESIGN.md 파일 저장 위치) | 무료 (npm `fidgetcoding-refero-mcp` v0.2.0, MIT) | ✅ npm 레지스트리 + GitHub README 직접 확인. 6 tools: refero_search · refero_get · refero_similar · refero_list · refero_facets · refero_design_md |
+| **Refero** (커뮤니티 래퍼) | styles.refero.design 큐레이션 약 200사이트의 **DESIGN.md**(색·타이포·간격·do/don't) | `claude mcp add refero -- npx -y fidgetcoding-refero-mcp` | 없음. `OPENAI_API_KEY`(선택, 시맨틱 검색) · `REFERO_MCP_VAULT_DIR`(선택, DESIGN.md 파일 저장 위치) | 무료 (npm `fidgetcoding-refero-mcp` v0.2.0, MIT) | ✅ npm + GitHub README 확인, **이 세션에서 stdio 기동 확인**(7 tools). `.mcp.json`에서 빈 `REFERO_MCP_VAULT_DIR` 치환이 오류를 내 제거함. 6 tools: refero_search · refero_get · refero_similar · refero_list · refero_facets · refero_design_md |
 | Refero **공식** MCP | Refero 본 라이브러리(화면 스크린샷) | doc.refero.design/mcp/getting-started 참조 | Refero 계정 | 유료 | ⚠️ 미검증(문서 차단). 커뮤니티 래퍼로 먼저 쓰고 필요하면 교체 |
-| **Lazyweb** | 25.7만 화면 + A/B 실험 데이터 + 디자인 스킬 6종 | `curl -fsSL https://www.lazyweb.com/install.sh \| bash` (실행 전 스크립트를 열어 읽는다) → `~/.lazyweb/lazyweb_mcp_token` 생성 → `export LAZYWEB_MCP_TOKEN=$(cat ~/.lazyweb/lazyweb_mcp_token)` | Bearer 토큰(자동 발급) | **무료** (데이터 툴은 플랜 따라감, 기본 무료) | ✅ GitHub `aboul3ata/lazyweb-skill` README 직접 확인. HTTP `https://www.lazyweb.com/mcp`. tools: lazyweb_search_screens · search_flows · search_experiments · compare_image · growth_score. 스킬 `/lazyweb-apply-design-best-practices` |
+| **Lazyweb** | 25.7만 화면 + A/B 실험 데이터 + 디자인 스킬 6종 | `curl -fsSL https://www.lazyweb.com/install.sh \| bash` (실행 전 스크립트를 열어 읽는다) → `~/.lazyweb/lazyweb_mcp_token` 생성 → `export LAZYWEB_MCP_TOKEN=$(cat ~/.lazyweb/lazyweb_mcp_token)` | Bearer 토큰(자동 발급) | **무료(조건부)**. 설치·토큰은 무료, 데이터 툴은 플랜을 따른다는 문구가 README에 있어 설치 후 검색 1회로 확인 | ✅ GitHub `aboul3ata/lazyweb-skill` README 직접 확인. HTTP `https://www.lazyweb.com/mcp`. tools: lazyweb_search_screens · search_flows · search_experiments · compare_image · growth_score. 스킬 `/lazyweb-apply-design-best-practices` |
 | **InspoAI** (inspoai.io) | 9.2만 UI 스크린샷 + 웹 인스피레이션, 3 tools | `.mcp.json`의 `inspoai` 항목. 키는 app.inspoai.io/mcp 에서 발급 → `export INSPOAI_API_KEY=...` | API 키 | 무료 플랜 있음 | ⚠️ **미검증**. 검색 요약은 `npx -y @inspoai/mcp`라 했으나 **npm 레지스트리에 그 패키지가 없다**(2026-09-21 조회). 공식 페이지의 스니펫으로 `command/args`를 교체할 것 |
 | **Inspo** (Nutlope, 오픈소스) | 실제 출시 832사이트·2,320페이지. 사이트별 DESIGN.md · 팔레트 · **find_by_color(hex)** · 데스크톱+모바일 쌍 | `claude mcp add --transport http inspo https://inspomcp.dev/api/mcp` 또는 `npx -y inspo-mcp install` | 없음 | **무료·MIT** | ✅ npm `inspo-mcp` v0.1.16 + GitHub README 직접 확인. 15 tools(search_screens · recommend · get_design_system · compare · find_by_color · find_similar · find_components …) |
 
