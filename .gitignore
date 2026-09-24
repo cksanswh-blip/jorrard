@@ -1,0 +1,4 @@
+# 로컬 전용 — 커밋하지 않는다
+tools/redact_local.tsv
+*.xlsx
+__pycache__/
