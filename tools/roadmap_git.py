@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""Orang정보총망라 로드맵 탭 → git 투영 · 소급 이력 도구.
+"""OrangPro 로드맵 — git 정본 도구.
 
-정본은 시트다. git 은 시트의 투영과 이력만 갖는다(시트 → git 한 방향).
+2026-09-24 부터 **정본은 이 저장소의 TSV** 다(대표 결정). 시트 `Orang정보총망라`·`총책임자전용` 은
+사람이 보는 거울이고, 거울은 git 에서 붙여넣기(또는 브릿지)로 맞춘다. 시트에서 먼저 고치지 않는다.
+
+  add TAB DELTA.tsv      새 행을 TSV 에 붙이고 검사한 뒤 행 날짜로 커밋한다 — **평소 기입은 이것 하나**
+  check                  TSV 3장을 검사한다(열 수 · 번호 중복·순서 · 날짜 형식). 커밋 전에 돈다
+  summary                TSV 에서 SUMMARY.md 를 다시 쓴다(커밋 안 함)
+
+  (시트에서 가져오기 — 2026-09-24 이전 이력과 거울 대조용)
+  export   XLSX            작업트리에 TSV·SUMMARY.md 를 쓴다(커밋 안 함)
 
   export   XLSX            작업트리에 TSV·SUMMARY.md 를 쓴다(커밋 안 함)
   backfill XLSX           작성·수정일 하루 1커밋의 소급 사슬을 부모 없이 만들고 끝 SHA 를 출력한다.
                           현재 브랜치에는 `git merge --allow-unrelated-histories <SHA>` 로 붙인다
-  sync     XLSX           HEAD 의 TSV 와 비교해 바뀐 행만 그 행의 날짜로 소급 커밋한다(정기 갱신용)
+  sync     XLSX           HEAD 의 TSV 와 비교해 바뀐 행만 그 행의 날짜로 소급 커밋한다(시트가 앞서갔을 때만)
 
 XLSX 는 구글 시트 「파일 → 다운로드 → Microsoft Excel」 로 받은 파일이다.
 공개 저장소를 전제로 기본 마스킹이 켜져 있다. 비공개 저장소에서만 --no-redact 를 쓴다.
@@ -24,15 +32,18 @@ OUT_DIR = "orangpro/roadmap"
 KST = "+0900"
 
 # 탭 이름 → (저장 파일명, 날짜 열 이름)
+# 날짜 열이 없으면 None: 커밋 시각(또는 add --date)을 쓴다
 TABS = {
     "로드맵": ("로드맵.tsv", "작성·수정일"),
     "로드맵(미래)": ("로드맵_미래.tsv", "작성·수정일"),
+    "100억": ("총책임자전용_100억.tsv", None),   # 시트 `총책임자전용` 의 탭
 }
 
-AUTHOR = ("Orang정보총망라 (시트 소급)", "roadmap@orangpro.invalid")
+AUTHOR = ("Orang정보총망라 (시트 소급)", "roadmap@orangpro.invalid")   # 시트에서 가져온 행
+AUTHOR_GIT = ("OrangPro 로드맵 (git 정본)", "roadmap@orangpro.invalid")  # git 에 바로 적은 행
 COMMITTER = ("Claude", "noreply@anthropic.com")
 TRAILER = (
-    "\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
+    "\n\nCo-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>\n"
     "Claude-Session: https://claude.ai/code/session_01F3Wvgo5RLKV6FLU27p5JZv\n"
 )
 
@@ -104,7 +115,7 @@ def load(xlsx, do_redact):
         while header and not header[-1]:
             header.pop()
         width = len(header)
-        di = header.index(date_col)
+        di = header.index(date_col) if date_col else None
         rows, last_when = [], None
         for raw in it:
             cells = [cell(c) for c in list(raw)[:width]]
@@ -113,7 +124,7 @@ def load(xlsx, do_redact):
                 continue
             if do_redact:
                 cells = [redact(c) for c in cells]
-            when = parse_when(cells[di]) if cells[di] else None
+            when = parse_when(cells[di]) if di is not None and cells[di] else None
             # 날짜가 빈 행은 시트에서 바로 앞 행의 날짜를 물려받는다(번호가 곧 기입 순서라는 가정)
             if when is None:
                 when = last_when
@@ -146,6 +157,154 @@ def read_tsv(path):
     return header, rows
 
 
+def row_when(tab, header, cells, fallback):
+    date_col = TABS[tab][1]
+    if date_col and date_col in header:
+        v = cells[header.index(date_col)]
+        w = parse_when(v) if v else None
+        if w:
+            return w
+    return fallback
+
+
+def sort_key(k):
+    return (int(k) if k.isdigit() else 10**9, k)
+
+
+def load_tsv_all():
+    """git 작업트리의 TSV 를 load() 와 같은 모양 {탭: (header, [key, cells, when])} 으로 돌려준다."""
+    out = {}
+    for tab, (fname, _) in TABS.items():
+        header, rows = read_tsv(os.path.join(OUT_DIR, fname))
+        if header is None:
+            continue
+        lst, last = [], dt.datetime(2026, 7, 1)
+        for k in sorted(rows, key=sort_key):
+            when = row_when(tab, header, rows[k], last)
+            last = when
+            lst.append([k, rows[k], when])
+        out[tab] = (header, lst)
+    return out
+
+
+def check_tab(tab, header, rows, strict=True):
+    """오류 문장 목록을 돌려준다. rows 는 [key, cells, when]."""
+    errs, width, seen, prev = [], len(header), set(), 0
+    date_col = TABS[tab][1]
+    for k, cells, _ in rows:
+        if len(cells) != width:
+            errs.append(f"{tab} {k}번: 열 {len(cells)}개 (헤더 {width}개)")
+        if not k.isdigit():
+            errs.append(f"{tab} {k!r}: 번호가 숫자가 아니다")
+            continue
+        if k in seen:
+            errs.append(f"{tab} {k}번: 번호 중복")
+        seen.add(k)
+        if strict and int(k) != prev + 1:
+            errs.append(f"{tab} {k}번: 번호가 이어지지 않는다 (앞 {prev})")
+        prev = int(k)
+        if date_col and date_col in header:
+            v = cells[header.index(date_col)]
+            if v and not re.match(r"\d{4}-\d{2}-\d{2}", v):
+                errs.append(f"{tab} {k}번: 날짜가 YYYY-MM-DD 로 시작하지 않는다 {v!r}")
+        if any(("\n" in c or "\t" in c) for c in cells):
+            errs.append(f"{tab} {k}번: 셀 안 줄바꿈·탭 — ' ⏎ ' 와 공백 4칸으로 바꾼다")
+    return errs
+
+
+def cmd_check(a):
+    data = load_tsv_all()
+    if not data:
+        sys.exit(f"{OUT_DIR} 에 TSV 가 없다")
+    errs = []
+    for tab, (header, rows) in data.items():
+        errs += check_tab(tab, header, rows, strict=not a.loose)
+        print(f"{tab}: {len(rows)}행 · 마지막 {rows[-1][0] if rows else '-'}번")
+    if errs:
+        sys.exit("\n".join("✗ " + e for e in errs))
+    print("✓ 이상 없음")
+
+
+def cmd_add(a):
+    """DELTA.tsv(헤더 없음, 열 수 동일) 의 행을 TAB 에 붙이고 검사한 뒤 행 날짜별로 커밋한다."""
+    tab = a.tab
+    if tab not in TABS:
+        sys.exit(f"탭은 {', '.join(TABS)} 중 하나다")
+    if git("status", "--porcelain", "--", OUT_DIR):
+        sys.exit(f"{OUT_DIR} 에 커밋 안 된 변경이 있다. 먼저 정리한다.")
+    path = os.path.join(OUT_DIR, TABS[tab][0])
+    header, old = read_tsv(path)
+    if header is None:
+        sys.exit(f"{path} 가 없다. 첫 적재는 export 로 만든다")
+    width = len(header)
+    with open(a.delta, encoding="utf-8") as f:
+        lines = [ln for ln in f.read().rstrip("\n").split("\n") if ln.strip()]
+    if lines and lines[0].split("\t")[0] == header[0]:
+        lines = lines[1:]  # 헤더가 들어 있으면 버린다
+    fallback = dt.datetime.strptime(a.date, "%Y-%m-%d") if a.date else dt.datetime.now()
+    new_rows = []
+    for ln in lines:
+        cells = [cell(c) for c in ln.split("\t")]
+        if len(cells) > width:
+            sys.exit(f"{cells[0]}번: 열 {len(cells)}개 — 헤더는 {width}개")
+        cells += [""] * (width - len(cells))
+        if not a.no_redact:
+            cells = [redact(c) for c in cells]
+        if cells[0] in old:
+            sys.exit(f"{cells[0]}번은 이미 있다. 고치려면 TSV 를 직접 고치고 커밋한다")
+        new_rows.append([cells[0], cells, row_when(tab, header, cells, fallback)])
+    if not new_rows:
+        sys.exit("붙일 행이 없다")
+    merged = dict(old)
+    merged.update({k: c for k, c, _ in new_rows})
+    rows_all, last = [], dt.datetime(2026, 7, 1)
+    for k in sorted(merged, key=sort_key):
+        w = row_when(tab, header, merged[k], last)
+        last = w
+        rows_all.append([k, merged[k], w])
+    errs = check_tab(tab, header, rows_all, strict=not a.loose)
+    if errs:
+        sys.exit("\n".join("✗ " + e for e in errs) + "\n아무것도 쓰지 않았다")
+    print(f"{tab}: +{len(new_rows)}행 ({new_rows[0][0]}~{new_rows[-1][0]}번) → {len(rows_all)}행")
+    if a.dry_run:
+        return
+    by_day = collections.defaultdict(list)
+    for r in new_rows:
+        by_day[r[2].date()].append(r)
+    written = dict(old)
+    for day in sorted(by_day):
+        for r in by_day[day]:
+            written[r[0]] = r[1]
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(["\t".join(header)] + ["\t".join(written[k]) for k in sorted(written, key=sort_key)]) + "\n")
+        nums = [r[0] for r in by_day[day]]
+        latest = max(r[2] for r in by_day[day])
+        title = f"로드맵 기입 {day}: {tab} +{len(nums)} ({nums[0]}~{nums[-1]}번)"
+        body = "\n\n" + "\n".join(f"- {r[0]} {r[1][2][:70]}" for r in by_day[day])
+        if a.why:
+            body += f"\n\n{a.why}"
+        env = dated_env(latest)
+        env["GIT_AUTHOR_NAME"], env["GIT_AUTHOR_EMAIL"] = AUTHOR_GIT
+        git("add", path)
+        git("commit", "-q", "-m", title + body + TRAILER, env=env)
+        print(f"  {day}  +{len(nums)}  커밋")
+    write_summary(load_tsv_all())
+    if git("status", "--porcelain", "--", OUT_DIR):
+        git("add", OUT_DIR)
+        git("commit", "-q", "-m", "로드맵 요약 갱신" + TRAILER)
+    print(f"완료 — 거울(시트)에는 같은 행을 붙여넣는다: {a.delta}")
+
+
+def cmd_summary(a):
+    write_summary(load_tsv_all())
+    print("SUMMARY.md 갱신")
+
+
+def write_summary(data):
+    os.makedirs(OUT_DIR, exist_ok=True)
+    with open(os.path.join(OUT_DIR, "SUMMARY.md"), "w", encoding="utf-8") as f:
+        f.write(summary(data))
+
 # ── 요약 ─────────────────────────────────────────────────────────────────
 def status_bucket(s):
     if s.startswith("✅") or s.startswith("완료") or "완료(" in s[:8]:
@@ -161,7 +320,7 @@ def status_bucket(s):
 
 def summary(data):
     L = ["# 로드맵 요약 (자동 생성 — 손으로 고치지 않는다)", ""]
-    L.append("`python3 tools/roadmap_git.py export|sync` 가 매번 다시 쓴다. 정본은 시트 `Orang정보총망라`.")
+    L.append("`python3 tools/roadmap_git.py add|summary|sync` 가 매번 다시 쓴다. **정본은 이 저장소의 TSV** (2026-09-24부터). 시트는 거울.")
     L.append("")
     if "로드맵" in data:
         header, rows = data["로드맵"]
@@ -191,6 +350,21 @@ def summary(data):
             c = r[1]
             if c[5] == "P0" and status_bucket(c[6]) != "✅ 완료":
                 L.append(f"| {c[0]} | {c[1]} | {c[2][:50]} | {c[6][:40]} |")
+        L.append("")
+    if "100억" in data:
+        header, rows = data["100억"]
+        L += [f"## 총책임자전용 · 100억 — {len(rows)}행 (자격·트랙션·정부지원·IP·행정)", ""]
+        tr = collections.Counter(r[1][1] for r in rows)
+        L += ["| 트랙 | 행 |", "| :-- | --: |"] + [f"| {k} | {v} |" for k, v in sorted(tr.items())]
+        L.append("")
+        st = collections.Counter(status_bucket(r[1][5]) for r in rows)
+        L += ["| 상태 | 행 |", "| :-- | --: |"] + [f"| {k} | {v} |" for k, v in st.most_common()]
+        L.append("")
+        L += ["### 열린 자격·정부지원 행 (대기·준비)", "", "| 번호 | 트랙 | 항목 | 시점·마감 |", "| --: | :-- | :-- | :-- |"]
+        for r in rows:
+            c = r[1]
+            if c[1][:1] in ("A", "C") and status_bucket(c[5]) == "⏳ 준비·대기·계획":
+                L.append(f"| {c[0]} | {c[1]} | {c[2][:45]} | {c[4][:30]} |")
         L.append("")
     return "\n".join(L)
 
@@ -237,8 +411,7 @@ def cmd_export(a):
         with open(os.path.join(OUT_DIR, TABS[tab][0]), "w", encoding="utf-8") as f:
             f.write(render(header, rows))
         print(f"{tab}: {len(rows)}행")
-    with open(os.path.join(OUT_DIR, "SUMMARY.md"), "w", encoding="utf-8") as f:
-        f.write(summary(data))
+    write_summary(load_tsv_all())
 
 
 def cmd_backfill(a):
@@ -329,8 +502,7 @@ def cmd_sync(a):
         msg = "로드맵 동기화: 시트에서 사라진 행 반영\n\n" + "\n".join(
             f"{t}: {', '.join(ks)}" for t, ks in removed.items() if ks) + TRAILER
         git("commit", "-q", "-m", msg)
-    with open(os.path.join(OUT_DIR, "SUMMARY.md"), "w", encoding="utf-8") as f:
-        f.write(summary(data))
+    write_summary(load_tsv_all())
     if git("status", "--porcelain", "--", OUT_DIR):
         git("add", OUT_DIR)
         git("commit", "-q", "-m", "로드맵 요약 갱신" + TRAILER)
@@ -340,8 +512,22 @@ def cmd_sync(a):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("add", help="새 행 기입(평소 쓰는 것)")
+    s.add_argument("tab", help="로드맵 | 로드맵(미래) | 100억")
+    s.add_argument("delta", help="헤더 없는 TSV. 열 수는 그 탭과 같다")
+    s.add_argument("--date", help="날짜 열이 없거나 빈 행의 날짜 YYYY-MM-DD (기본 오늘)")
+    s.add_argument("--why", help="커밋 본문에 붙일 한 줄 사유")
+    s.add_argument("--loose", action="store_true", help="번호 연속 검사 끔")
+    s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--no-redact", action="store_true", help="마스킹 끔 — 비공개 저장소에서만")
+    s.set_defaults(fn=cmd_add)
+    s = sub.add_parser("check", help="TSV 검사")
+    s.add_argument("--loose", action="store_true", help="번호 연속 검사 끔")
+    s.set_defaults(fn=cmd_check)
+    s = sub.add_parser("summary", help="SUMMARY.md 재생성")
+    s.set_defaults(fn=cmd_summary)
     for name, fn in (("export", cmd_export), ("backfill", cmd_backfill), ("sync", cmd_sync)):
-        s = sub.add_parser(name)
+        s = sub.add_parser(name, help="시트(XLSX)에서 가져오기")
         s.add_argument("xlsx")
         s.add_argument("--no-redact", action="store_true", help="마스킹 끔 — 비공개 저장소에서만")
         if name == "sync":
